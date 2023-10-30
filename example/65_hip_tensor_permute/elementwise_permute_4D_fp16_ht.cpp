@@ -76,15 +76,17 @@ int main()
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
 
     std::array<ck::index_t, 4> ab_lengths;
-    std::array<ck::index_t, 4> a_strides = {static_cast<int>(whcn[1] * whcn[2] * whcn[3]),
-                                            static_cast<int>(whcn[2] * whcn[3]),
-                                            static_cast<int>(whcn[3]),
-                                            1};
-    std::array<ck::index_t, 4> b_strides = {
+    std::array<ck::index_t, 4> a_strides = {
 	    1,
-	    static_cast<int>(cnhw[3]),
-	    static_cast<int>(cnhw[1] * cnhw[2] * cnhw[3]),
-	    static_cast<int>(cnhw[2] * cnhw[3]),
+	    static_cast<int>(whcn[0]),
+	    static_cast<int>(whcn[0] * whcn[1]),
+	    static_cast<int>(whcn[0] * whcn[1] * whcn[2]),
+    };
+    std::array<ck::index_t, 4> b_strides = {
+	    static_cast<int>(cnhw[0] * cnhw[1] * cnhw[2]),
+	    static_cast<int>(cnhw[0] * cnhw[1]),
+	    1,
+	    static_cast<int>(cnhw[0]),
     };
 
     ck::ranges::copy(whcn, ab_lengths.begin());
