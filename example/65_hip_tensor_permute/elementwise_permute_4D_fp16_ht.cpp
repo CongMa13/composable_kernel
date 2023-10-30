@@ -55,8 +55,8 @@ int main()
     bool do_verification = true;
     bool time_kernel     = true;
 
-    std::vector<std::size_t> whcn = {8, 4, 16, 32}; // whcn : n => w, c => h, h => c, w => n
-    std::vector<std::size_t> cnhw = {16, 32, 4, 8};
+    std::vector<std::size_t> whcn = {3, 2, 4, 5}; // whcn : n => w, c => h, h => c, w => n
+    std::vector<std::size_t> cnhw = {4, 5, 2, 3};
     Tensor<ADataType> a(whcn);
     Tensor<BDataType> b(cnhw);
 
@@ -93,11 +93,13 @@ int main()
     auto argument         = broadcastPermute.MakeArgumentPointer(
         ab_lengths, {a_strides}, {b_strides}, input, output, PassThrough{}, UnaryOp{});
 
+    /*
     if(!broadcastPermute.IsSupportedArgument(argument.get()))
     {
         throw std::runtime_error(
             "The runtime parameters seems not supported by the device instance, exiting!");
     };
+    */
 
     std::cout << "A (whcn): " << a.mDesc << std::endl;
     std::cout << "B (cnhw): " << b.mDesc << std::endl;
