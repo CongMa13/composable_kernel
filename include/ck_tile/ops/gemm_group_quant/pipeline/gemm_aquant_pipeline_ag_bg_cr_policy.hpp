@@ -56,7 +56,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                                       WarpGemm,
                                                                       BlockSize,
                                                                       MPerBlock,
-                                                                      KPerBlockAQ,
+                                                                      16 * KPerBlockAQ,
                                                                       VecLoadSize>;
 
         return TileEncodingPattern::Make2DStaticTileDistribution();

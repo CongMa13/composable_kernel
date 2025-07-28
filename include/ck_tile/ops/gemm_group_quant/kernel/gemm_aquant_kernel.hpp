@@ -3,11 +3,10 @@
 
 #pragma once
 
-#include <iostream>
 #include <string>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/common.hpp"
+#include "ck_tile/core/container/tuple.hpp"
 #include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
@@ -374,12 +373,25 @@ struct AQuantGemmKernel
 
         const auto& aq_tensor_view = [&]() {
             static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-            return make_naive_tensor_view<address_space_enum::global>(
-                aq_ptr,
-                make_tuple(kargs.M, kargs.QK),
-                make_tuple(kargs.stride_AQ, 1),
-                number<GemmPipeline::GetVectorSizeAQ()>{},
-                number<1>{});
+            const auto aq_m_qk_desc =
+                make_naive_tensor_descriptor(make_tuple(kargs.M, kargs.QK),
+                                             make_tuple(kargs.stride_AQ, 1),
+                                             number<GemmPipeline::GetVectorSizeAQ()>{},
+                                             number<1>{});
+            const auto aq_m_qk_rep_desc = transform_tensor_descriptor(
+                aq_m_qk_desc,
+                make_tuple(make_replicate_transform(make_tuple(16)),
+                           make_pass_through_transform(kargs.M),
+                           make_pass_through_transform(kargs.QK)),
+                make_tuple(sequence<>{}, sequence<0>{}, sequence<1>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+            const auto aq_m_qk_view_desc = transform_tensor_descriptor(
+                aq_m_qk_rep_desc,
+                make_tuple(make_pass_through_transform(kargs.M),
+                           make_merge_transform(make_tuple(16, kargs.QK))),
+                make_tuple(sequence<1>{}, sequence<2, 0>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+            return make_tensor_view<address_space_enum::global>(aq_ptr, aq_m_qk_view_desc);
         }();
 
         const auto& b_tensor_view = [&]() {
@@ -496,8 +508,9 @@ struct AQuantGemmKernel
             static_assert(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>);
             return pad_tensor_view(
                 aq_tensor_view,
-                make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
+                make_tuple(
+                    number<TilePartitioner::MPerBlock>{},
+                    number<16 * TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
                 // TODO: Add support for padding.
                 sequence<false, false>{});
         }();
@@ -572,8 +585,9 @@ struct AQuantGemmKernel
             static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
             return make_tile_window(
                 aq_pad_view,
-                make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
+                make_tuple(
+                    number<TilePartitioner::MPerBlock>{},
+                    number<16 * TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
                 {i_m, 0});
         }();
 

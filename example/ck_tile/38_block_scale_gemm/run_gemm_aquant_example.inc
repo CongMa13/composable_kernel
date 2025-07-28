@@ -159,6 +159,12 @@ int run_gemm_example_with_layouts(int argc,
             ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
         }
         ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(aq_m_aqk);
+        // float init_aq_v = .1f;
+        // for(auto&& aq_v : aq_m_aqk)
+        // {
+        //     aq_v = init_aq_v;
+        //     init_aq_v += 0.1f;
+        // }
         ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
     }
     else if(init_method == 1)

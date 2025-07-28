@@ -39,7 +39,7 @@ struct GemmAQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
         static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
 
         using YPerTile = number<MPerBlock>;
-        using XPerTile = number<KPerBlockAQ>;
+        using XPerTile = number<16 * KPerBlockAQ>;
 
         auto aq_copy_dram_window =
             make_tile_window(aq_dram_block_window_tmp.get_bottom_tensor_view(),

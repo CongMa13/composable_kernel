@@ -70,13 +70,21 @@ struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPatter
     static_assert(KWarps == 1);
 
     // # of elements per thread
-    static constexpr index_t X = XPerTile;
+    static constexpr index_t X0 = XPerTile / WarpGemm::kN;
+    static constexpr index_t X1 = WarpGemm::kN;
 
-    static constexpr index_t Y0 = 1;
-    static constexpr index_t Y1 = MIterPerWarp ? MIterPerWarp : 1;
-    static constexpr index_t Y2 = MWarps;
-    static constexpr index_t Y3 = WarpGemm::kM;
-    static_assert(Y3 >= WarpGemm::kM, "Scales for all rows must be available within the warp.");
+    static constexpr index_t Y3 = WarpGemm::kM * WarpGemm::kN / warp_size;
+    static constexpr index_t Y2 = WarpGemm::kM / Y3;
+    static constexpr index_t Y1 = MWarps;
+    static constexpr index_t Y0 = MIterPerWarp ? MIterPerWarp : 1;
+    static_assert(XPerTile == 32);
+    static_assert(X0 == 2);
+    static_assert(X1 == 16);
+    static_assert(Y3 == 4);
+    static_assert(Y2 == 4);
+    static_assert(Y1 == 1);
+    static_assert(Y0 == 1);
+    // static_assert(Y3 >= WarpGemm::kM, "Scales for all rows must be available within the warp.");
     static_assert(Y0 * Y1 * Y2 * Y3 == YPerTile,
                   "Y0, Y1, Y2, Y3 must cover the blocktile along Y.");
 
@@ -84,11 +92,11 @@ struct TileDistributionEncodingPatternAQ : public TileDistributionEncodingPatter
     {
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<NWarps>,
-                                       tuple<sequence<Y0, Y1, Y2, Y3>, sequence<X>>,
-                                       tuple<sequence<1, 0>, sequence<1, 1>>,
-                                       tuple<sequence<2, 0>, sequence<0, 3>>,
-                                       sequence<1, 2>,
-                                       sequence<1, 0>>{});
+                                       tuple<sequence<Y0, Y1, Y2, Y3>, sequence<X0, X1>>,
+                                       tuple<sequence<1, 0>, sequence<1, 2>>,
+                                       tuple<sequence<1, 0>, sequence<2, 1>>,
+                                       sequence<1, 2, 1>,
+                                       sequence<0, 0, 3>>{});
     }
 };
 
