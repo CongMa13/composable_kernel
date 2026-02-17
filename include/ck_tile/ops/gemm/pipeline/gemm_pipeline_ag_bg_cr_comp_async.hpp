@@ -6,6 +6,7 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_async_default_policy.hpp"
+#include <memory>
 
 namespace ck_tile {
 
@@ -413,6 +414,14 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
             // write to LDS window(0) must complete before the local prefetch
             block_sync_lds_direct_load();
+
+            if(blockIdx.x == 0)
+            {
+                auto offset0 = threadIdx.x;
+                printf("%03u: %f\n",
+                       offset0,
+                       static_cast<float>((static_cast<_Float16*>(p_smem))[threadIdx.x]));
+            }
             // read A(0), B(0) from LDS window(0) to pipeline registers(0)
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0, is_a_load_tr_v);
             Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0, is_b_load_tr_v);

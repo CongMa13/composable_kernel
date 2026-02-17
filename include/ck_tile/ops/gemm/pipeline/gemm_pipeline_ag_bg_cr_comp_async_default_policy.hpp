@@ -18,8 +18,8 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
     static constexpr auto ATileAccessPattern = tile_distribution_pattern::warp_raked;
     static constexpr auto BTileAccessPattern = tile_distribution_pattern::warp_raked;
 
-    static constexpr index_t kDramLoadPackBytes = 128;
-    static constexpr index_t DWORDx4            = 16;
+    static constexpr index_t kLdsRowBytes = 64 * 4;
+    static constexpr index_t DWORDx4      = 16;
 
     template <typename Problem,
               typename OverrideADataType = remove_cvref_t<typename Problem::ADataType>>
@@ -110,8 +110,8 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         auto&& tensor_view_tmp  = window_tmp.get_bottom_tensor_view();
         const auto [rows, cols] = tensor_view_tmp.get_tensor_descriptor().get_lengths();
 
-        constexpr index_t K2 = DWORDx4;
-        constexpr index_t K1 = kDramLoadPackBytes / DWORDx4;
+        constexpr index_t K2 = DWORDx4 / sizeof(ADataType);
+        constexpr index_t K1 = kLdsRowBytes / DWORDx4;
         const index_t K0     = cols / (K1 * K2 * APackedSize);
         const auto col_lens  = make_tuple(K0, number<K1>{}, number<K2>{});
 
@@ -137,7 +137,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
                                         make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
                                         make_tuple(sequence<0>{}, sequence<1>{}));
 
-        auto&& byte_ptr = reinterpret_cast<const uint8_t*>(&(tensor_view_tmp.get_buffer_view()(0)));
+        auto&& byte_ptr         = &(tensor_view_tmp.get_buffer_view()(0));
         auto&& byte_tensor_view = make_tensor_view<address_space_enum::global>(byte_ptr, desc);
 
         auto&& origin_tmp = window_tmp.get_window_origin();
@@ -148,12 +148,13 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t M2_dstr   = WaveSize / K1;
         constexpr index_t M1_dstr   = BlockSize / WaveSize;
         constexpr index_t M0_dstr   = MPerBlock / (M2_dstr * M1_dstr);
-        constexpr index_t K0_dstr   = ck_tile::max(1, KPerBlock / (K1 * K2 * APackedSize));
+        constexpr index_t K1_dstr   = kLdsRowBytes / DWORDx4;
+        constexpr index_t K0_dstr   = ck_tile::max(1, KPerBlock / (K1_dstr * K2 * APackedSize));
 
         const auto tile_dstr = make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<1>,
-                tuple<sequence<M0_dstr, M1_dstr, M2_dstr>, sequence<K0_dstr, K1, K2>>,
+                tuple<sequence<M0_dstr, M1_dstr, M2_dstr>, sequence<K0_dstr, K1_dstr, K2>>,
                 tuple<sequence<1>, sequence<1, 2>>,
                 tuple<sequence<1>, sequence<2, 1>>,
                 sequence<1, 2, 2>,
@@ -178,8 +179,8 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         auto&& tensor_view_tmp  = window_tmp.get_bottom_tensor_view();
         const auto [rows, cols] = tensor_view_tmp.get_tensor_descriptor().get_lengths();
 
-        constexpr index_t K2 = DWORDx4;
-        constexpr index_t K1 = kDramLoadPackBytes / DWORDx4;
+        constexpr index_t K2 = DWORDx4 / sizeof(BDataType);
+        constexpr index_t K1 = kLdsRowBytes / DWORDx4;
         const index_t K0     = cols / (K1 * K2 * BPackedSize);
         const auto col_lens  = make_tuple(K0, number<K1>{}, number<K2>{});
 
@@ -205,7 +206,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
                                         make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
                                         make_tuple(sequence<0>{}, sequence<1>{}));
 
-        auto&& byte_ptr = reinterpret_cast<const uint8_t*>(&(tensor_view_tmp.get_buffer_view()(0)));
+        auto&& byte_ptr         = &(tensor_view_tmp.get_buffer_view()(0));
         auto&& byte_tensor_view = make_tensor_view<address_space_enum::global>(byte_ptr, desc);
 
         auto&& origin_tmp = window_tmp.get_window_origin();
@@ -216,12 +217,13 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t N2_dstr   = WaveSize / K1;
         constexpr index_t N1_dstr   = BlockSize / WaveSize;
         constexpr index_t N0_dstr   = NPerBlock / (N2_dstr * N1_dstr);
-        constexpr index_t K0_dstr   = ck_tile::max(1, KPerBlock / (K1 * K2 * BPackedSize));
+        constexpr index_t K1_dstr   = 64 * 4 / K2;
+        constexpr index_t K0_dstr   = ck_tile::max(1, KPerBlock / (K1_dstr * K2 * BPackedSize));
 
         const auto tile_dstr = make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<1>,
-                tuple<sequence<N0_dstr, N1_dstr, N2_dstr>, sequence<K0_dstr, K1, K2>>,
+                tuple<sequence<N0_dstr, N1_dstr, N2_dstr>, sequence<K0_dstr, K1_dstr, K2>>,
                 tuple<sequence<1>, sequence<1, 2>>,
                 tuple<sequence<1>, sequence<2, 1>>,
                 sequence<1, 2, 2>,
