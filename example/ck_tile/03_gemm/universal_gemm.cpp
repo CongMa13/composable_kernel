@@ -187,6 +187,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
         return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
             a_layout, b_layout, arg_parser);
     }
+#if 0
     else if(data_type == "bf16")
     {
         return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::bf16_t>, ck_tile::bf16_t>(
@@ -262,6 +263,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
             throw std::runtime_error("Unsupported pipeline for this operation !!!");
         }
     }
+#endif
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");
@@ -281,7 +283,8 @@ int main(int argc, char* argv[])
 #if CK_TILE_USE_WMMA
         return !run_gemm_example<GemmConfigComputeV3_WMMA>(arg_parser);
 #else
-        return !run_gemm_example<GemmConfigComputeV3_2>(arg_parser);
+        return !run_gemm_example<GemmConfigComputeV4>(arg_parser);
+        // return !run_gemm_example<GemmConfigComputeV3_1>(arg_parser);
 #endif
     }
     catch(const std::runtime_error& e)

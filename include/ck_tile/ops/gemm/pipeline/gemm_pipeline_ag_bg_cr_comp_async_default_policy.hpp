@@ -148,11 +148,12 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t M2_dstr   = WaveSize / K1;
         constexpr index_t M1_dstr   = BlockSize / WaveSize;
         constexpr index_t M0_dstr   = MPerBlock / (M2_dstr * M1_dstr);
+        constexpr index_t K0_dstr   = ck_tile::max(1, KPerBlock / (K1 * K2 * APackedSize));
 
-        constexpr auto tile_dstr = make_static_tile_distribution(
+        const auto tile_dstr = make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<1>,
-                tuple<sequence<M0_dstr, M1_dstr, M2_dstr>, sequence<K0, K1, K2>>,
+                tuple<sequence<M0_dstr, M1_dstr, M2_dstr>, sequence<K0_dstr, K1, K2>>,
                 tuple<sequence<1>, sequence<1, 2>>,
                 tuple<sequence<1>, sequence<2, 1>>,
                 sequence<1, 2, 2>,
@@ -165,7 +166,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
     }
 
     template <typename Problem, typename WindowTmp>
-    CK_TILE_DEVICE static constexpr auto MakeBAsyncLoadBytesDramWindow(const WindowTmp& window_tmp)
+    CK_TILE_DEVICE static auto MakeBAsyncLoadBytesDramWindow(const WindowTmp& window_tmp)
     {
         using BDataType               = remove_cvref_t<typename Problem::BDataType>;
         constexpr index_t BPackedSize = numeric_traits<BDataType>::PackedSize;
@@ -215,11 +216,12 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t N2_dstr   = WaveSize / K1;
         constexpr index_t N1_dstr   = BlockSize / WaveSize;
         constexpr index_t N0_dstr   = NPerBlock / (N2_dstr * N1_dstr);
+        constexpr index_t K0_dstr   = ck_tile::max(1, KPerBlock / (K1 * K2 * BPackedSize));
 
-        constexpr auto tile_dstr = make_static_tile_distribution(
+        const auto tile_dstr = make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<1>,
-                tuple<sequence<N0_dstr, N1_dstr, N2_dstr>, sequence<K0, K1, K2>>,
+                tuple<sequence<N0_dstr, N1_dstr, N2_dstr>, sequence<K0_dstr, K1, K2>>,
                 tuple<sequence<1>, sequence<1, 2>>,
                 tuple<sequence<1>, sequence<2, 1>>,
                 sequence<1, 2, 2>,

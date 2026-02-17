@@ -331,9 +331,9 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             // initialize DRAM window steps for byte-based windows
             // Note: byte-based windows already account for data type packing
             const auto a_dram_tile_window_step =
-                make_tuple(number<0>{}, number<KPerBlock / APackedSize>{});
+                array<index_t, 2>{number<0>{}, number<KPerBlock / APackedSize>{}};
             const auto b_dram_tile_window_step =
-                make_tuple(number<0>{}, number<KPerBlock / BPackedSize>{});
+                array<index_t, 2>{number<0>{}, number<KPerBlock / BPackedSize>{}};
 
             // Define async load tile lambda
             auto async_load_tile_ = [](auto lds, auto dram) {
