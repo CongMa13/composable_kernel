@@ -85,6 +85,7 @@ class TestGemmPersistentAsyncInput : public ::testing::Test
         // }
         // printf("\n");
         ck_tile::FillConstant<BDataType>{1}(b_k_n);
+        // ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
         ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
         // ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
 

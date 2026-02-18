@@ -417,10 +417,11 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
             if(blockIdx.x == 0)
             {
-                auto offset0 = threadIdx.x;
+                BDataType* p_lds = b_lds_block0.get_buffer_view().p_data_;
+                auto offset0     = threadIdx.x;
                 printf("%03u: %f\n",
                        offset0,
-                       static_cast<float>((static_cast<_Float16*>(p_smem))[threadIdx.x]));
+                       static_cast<float>((static_cast<_Float16*>(p_lds))[threadIdx.x]));
             }
             // read A(0), B(0) from LDS window(0) to pipeline registers(0)
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0, is_a_load_tr_v);
