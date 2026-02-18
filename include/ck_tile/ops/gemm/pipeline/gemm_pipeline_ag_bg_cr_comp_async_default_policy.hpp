@@ -4,6 +4,12 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/algorithm/coordinate_transform.hpp"
+#include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/container/sequence.hpp"
+#include "ck_tile/core/container/tuple.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
@@ -110,31 +116,63 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         auto&& tensor_view_tmp  = window_tmp.get_bottom_tensor_view();
         const auto [rows, cols] = tensor_view_tmp.get_tensor_descriptor().get_lengths();
 
-        constexpr index_t K2 = DWORDx4 / sizeof(ADataType);
-        constexpr index_t K1 = kLdsRowBytes / DWORDx4;
-        const index_t K0     = cols / (K1 * K2 * APackedSize);
+        constexpr index_t K2 = DWORDx4 / (sizeof(ADataType) * APackedSize);
+        constexpr index_t K1 = KPerBlock / K2;
+        const index_t K0     = cols / (K1 * K2);
         const auto col_lens  = make_tuple(K0, number<K1>{}, number<K2>{});
 
-        constexpr index_t M1 = 4;
-        const index_t M0     = integer_divide_ceil(rows, M1);
-        const auto row_lens  = make_tuple(M0, number<M1>{});
+        constexpr index_t LdsPackPerRow = kLdsRowBytes / DWORDx4;
+        constexpr index_t M2            = LdsPackPerRow / K1;
+        constexpr index_t M1            = get_warp_size() / (K1 * M2);
+        const index_t M0                = integer_divide_ceil(rows, (M1 * M2));
+        const auto row_lens             = make_tuple(M0, number<M1>{}, number<M2>{});
 
+        // TODO: static_assert for tests
+        static_assert(K2 == 8);
+        static_assert(K1 == 4);
+        static_assert(M2 == 4);
+        static_assert(M1 == 4);
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        // {
+        //     printf("naive: %d, %d\n", rows, cols);
+        // }
         const auto d0 = make_naive_tensor_descriptor_packed(container_concat(row_lens, col_lens));
         const auto desc_0 = decltype(d0)(
             d0.get_transforms(), tensor_view_tmp.get_tensor_descriptor().get_element_space_size());
         const auto desc_1 = transform_tensor_descriptor(
             desc_0,
             make_tuple(make_pass_through_transform(M0),
-                       make_xor_transform(make_tuple(number<M1>{}, number<K1>{})),
+                       make_pass_through_transform(M1),
+                       make_merge_transform(make_tuple(number<M2>{}, number<K1>{})),
+                       make_pass_through_transform(K0),
+                       make_pass_through_transform(number<K2>{})),
+            make_tuple(
+                sequence<0>{}, sequence<1>{}, sequence<2, 4>{}, sequence<3>{}, sequence<5>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<3>{}, sequence<2>{}, sequence<4>{}));
+        constexpr index_t M2K1 = M2 * K1;
+        const auto desc_2      = transform_tensor_descriptor(
+            desc_1,
+            make_tuple(make_pass_through_transform(M0),
+                       make_xor_transform(make_tuple(number<M1>{}, number<M2K1>{})),
                        make_pass_through_transform(K0),
                        make_pass_through_transform(number<K2>{})),
             make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}, sequence<4>{}),
             make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}, sequence<4>{}));
+        const auto desc_3 = transform_tensor_descriptor(
+            desc_2,
+            make_tuple(make_pass_through_transform(M0),
+                       make_pass_through_transform(M1),
+                       make_unmerge_transform(make_tuple(M2, K1)),
+                       make_pass_through_transform(K0),
+                       make_pass_through_transform(K2)),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<3>{}, sequence<2>{}, sequence<4>{}),
+            make_tuple(
+                sequence<0>{}, sequence<1>{}, sequence<2, 4>{}, sequence<3>{}, sequence<5>{}));
         const auto desc =
-            transform_tensor_descriptor(desc_1,
+            transform_tensor_descriptor(desc_3,
                                         make_tuple(make_merge_transform_v3_division_mod(row_lens),
                                                    make_merge_transform_v3_division_mod(col_lens)),
-                                        make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
+                                        make_tuple(sequence<0, 1, 2>{}, sequence<3, 4, 5>{}),
                                         make_tuple(sequence<0>{}, sequence<1>{}));
 
         auto&& byte_ptr         = &(tensor_view_tmp.get_buffer_view()(0));
@@ -143,22 +181,24 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         auto&& origin_tmp = window_tmp.get_window_origin();
 
         // Create tile distribution inline (reuse K2, K1, K0 from above)
+        // TODO: logic is different if KPerBlock > kLdsRowBytes / sizeof(ADataType)
+        static_assert(KPerBlock <= kLdsRowBytes / sizeof(ADataType));
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t WaveSize  = get_warp_size();
-        constexpr index_t M2_dstr   = WaveSize / K1;
+        constexpr index_t K1_dstr   = K2;
+        constexpr index_t K0_dstr   = KPerBlock / K2;
+        constexpr index_t M2_dstr   = WaveSize / K0_dstr;
         constexpr index_t M1_dstr   = BlockSize / WaveSize;
         constexpr index_t M0_dstr   = MPerBlock / (M2_dstr * M1_dstr);
-        constexpr index_t K1_dstr   = kLdsRowBytes / DWORDx4;
-        constexpr index_t K0_dstr   = ck_tile::max(1, KPerBlock / (K1_dstr * K2 * APackedSize));
 
         const auto tile_dstr = make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<1>,
-                tuple<sequence<M0_dstr, M1_dstr, M2_dstr>, sequence<K0_dstr, K1_dstr, K2>>,
+                tuple<sequence<M0_dstr, M1_dstr, M2_dstr>, sequence<K0_dstr, K1_dstr>>,
                 tuple<sequence<1>, sequence<1, 2>>,
-                tuple<sequence<1>, sequence<2, 1>>,
-                sequence<1, 2, 2>,
-                sequence<0, 0, 2>>{});
+                tuple<sequence<1>, sequence<2, 0>>,
+                sequence<1, 2>,
+                sequence<0, 1>>{});
 
         return make_tile_window(byte_tensor_view,
                                 make_tuple(number<MPerBlock>{}, number<KPerBlock / APackedSize>{}),

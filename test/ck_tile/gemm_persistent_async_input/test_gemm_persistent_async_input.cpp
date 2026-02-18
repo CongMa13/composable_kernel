@@ -76,7 +76,8 @@ class TestGemmPersistentAsyncInput : public ::testing::Test
             M, N, stride_C, ck_tile::bool_constant<is_c_row_major>{}));
 
         // Fill input tensors with random values
-        ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
+        // ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
+        // ck_tile::FillConstant<ADataType>{1}(a_m_k);
         // printf("a_m_k\n");
         // for(auto v : a_m_k)
         // {
@@ -84,7 +85,7 @@ class TestGemmPersistentAsyncInput : public ::testing::Test
         // }
         // printf("\n");
         ck_tile::FillConstant<BDataType>{1}(b_k_n);
-        // ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
+        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
         // ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
 
         // Allocate device memory
