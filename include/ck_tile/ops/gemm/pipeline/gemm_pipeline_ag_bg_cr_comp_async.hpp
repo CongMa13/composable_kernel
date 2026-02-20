@@ -300,10 +300,32 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 number<BsLayout::size()>{});
 
             // this pipeline has a pair of LDS buffers per logical tile
-            constexpr index_t smem_size         = Policy::template GetSmemSize<Problem>();
-            auto&& [a_lds_block0, b_lds_block0] = Base::GetABLdsTensorViews(p_smem);
+            constexpr index_t smem_size  = Policy::template GetSmemSize<Problem>();
+            auto get_AB_lds_tensor_views = [](void* smem) {
+                // A tile in LDS
+                ADataType* __restrict__ p_a_lds = static_cast<ADataType*>(smem);
+                constexpr auto a_lds_block_desc =
+                    Policy::template MakeALdsBlockDescriptor<Problem, ADataType>();
+                auto a_lds_block =
+                    make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
+
+                // TODO: LDS alignment should come from Policy!
+                constexpr index_t a_lds_block_space_size_aligned = integer_least_multiple(
+                    sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16);
+
+                // B tile in LDS
+                BDataType* __restrict__ p_b_lds = static_cast<BDataType*>(
+                    static_cast<void*>(static_cast<char*>(smem) + a_lds_block_space_size_aligned));
+                constexpr auto b_lds_block_desc =
+                    Policy::template MakeBLdsBlockDescriptor<Problem>();
+                auto b_lds_block =
+                    make_tensor_view<address_space_enum::lds>(p_b_lds, b_lds_block_desc);
+
+                return make_tuple(std::move(a_lds_block), std::move(b_lds_block));
+            };
+            auto&& [a_lds_block0, b_lds_block0] = get_AB_lds_tensor_views(p_smem);
             auto&& [a_lds_block1, b_lds_block1] =
-                Base::GetABLdsTensorViews(static_cast<char*>(p_smem) + smem_size);
+                get_AB_lds_tensor_views(static_cast<char*>(p_smem) + smem_size);
 
             // set up LDS tile shapes
             constexpr auto a_lds_shape = []() {
@@ -415,14 +437,16 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             // write to LDS window(0) must complete before the local prefetch
             block_sync_lds_direct_load();
 
-            if(blockIdx.x == 0)
-            {
-                BDataType* p_lds = b_lds_block0.get_buffer_view().p_data_;
-                auto offset0     = threadIdx.x;
-                printf("%03u: %f\n",
-                       offset0,
-                       static_cast<float>((static_cast<_Float16*>(p_lds))[threadIdx.x]));
-            }
+            // if(blockIdx.x == 0)
+            // {
+            //     ADataType* p_a_lds = a_lds_block0.get_buffer_view().p_data_;
+            //     BDataType* p_b_lds = b_lds_block0.get_buffer_view().p_data_;
+            //     auto offset0       = threadIdx.x;
+            //     printf("%03u: %f, %f\n",
+            //            offset0,
+            //            static_cast<float>((static_cast<_Float16*>(p_a_lds))[threadIdx.x]),
+            //            static_cast<float>((static_cast<_Float16*>(p_b_lds))[threadIdx.x]));
+            // }
             // read A(0), B(0) from LDS window(0) to pipeline registers(0)
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0, is_a_load_tr_v);
             Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0, is_b_load_tr_v);

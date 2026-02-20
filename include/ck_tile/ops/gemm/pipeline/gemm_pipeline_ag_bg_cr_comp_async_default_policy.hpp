@@ -49,19 +49,42 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         {
             constexpr index_t KPack = GetSmemPackA<Problem>();
 
-            constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-                make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
-                make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
-                number<KPack>{},
-                number<1>{});
+            constexpr index_t L3 = KPack;
+            constexpr index_t L2 = 64 * 2 / KPack;
+            constexpr index_t L1 = 4;
+            constexpr index_t L0 = MPerBlock * KPerBlock / (L1 * L2 * L3);
+            constexpr auto a_lds_block_desc_0 =
+                make_naive_tensor_descriptor(make_tuple(L0, L1, L2, L3),
+                                             make_tuple(L1 * L2 * L3, L2 * L3, L3, 1),
+                                             number<KPack>{},
+                                             number<1>{});
 
-            return transform_tensor_descriptor(
+            const auto a_lds_block_desc_1 = transform_tensor_descriptor(
                 a_lds_block_desc_0,
-                make_tuple(
-                    make_pass_through_transform(number<MPerBlock>{}),
-                    make_merge_transform(make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
-                make_tuple(sequence<1>{}, sequence<0, 2>{}),
+                make_tuple(make_pass_through_transform(L0),
+                           make_xor_transform(make_tuple(number<L1>{}, number<L2>{})),
+                           make_pass_through_transform(L3)),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+
+            constexpr index_t KPacksPerBlock = KPerBlock / KPack;
+            constexpr index_t MRowsPerLdsRow = 64 * 2 / KPerBlock;
+            const auto a_lds_block_desc_2    = transform_tensor_descriptor(
+                a_lds_block_desc_1,
+                make_tuple(make_pass_through_transform(L0),
+                           make_pass_through_transform(L1),
+                           make_unmerge_transform(make_tuple(MRowsPerLdsRow, KPacksPerBlock)),
+                           make_pass_through_transform(L3)),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3>{}, sequence<4>{}));
+
+            const auto a_lds_block_desc_3 = transform_tensor_descriptor(
+                a_lds_block_desc_2,
+                make_tuple(make_merge_transform(make_tuple(L0, L1, MRowsPerLdsRow)),
+                           make_merge_transform(make_tuple(KPacksPerBlock, L3))),
+                make_tuple(sequence<0, 1, 2>{}, sequence<3, 4>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
+            return a_lds_block_desc_3;
         }
     }
 
@@ -86,19 +109,42 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         {
             constexpr index_t KPack = GetSmemPackB<Problem>();
 
-            constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
-                make_tuple(number<KPerBlock / KPack>{}, number<NPerBlock>{}, number<KPack>{}),
-                make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
-                number<KPack>{},
-                number<1>{});
+            constexpr index_t L3 = KPack;
+            constexpr index_t L2 = 64 * 2 / KPack;
+            constexpr index_t L1 = 4;
+            constexpr index_t L0 = NPerBlock * KPerBlock / (L1 * L2 * L3);
+            constexpr auto b_lds_block_desc_0 =
+                make_naive_tensor_descriptor(make_tuple(L0, L1, L2, L3),
+                                             make_tuple(L1 * L2 * L3, L2 * L3, L3, 1),
+                                             number<KPack>{},
+                                             number<1>{});
 
-            return transform_tensor_descriptor(
+            const auto b_lds_block_desc_1 = transform_tensor_descriptor(
                 b_lds_block_desc_0,
-                make_tuple(
-                    make_pass_through_transform(number<NPerBlock>{}),
-                    make_merge_transform(make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
-                make_tuple(sequence<1>{}, sequence<0, 2>{}),
+                make_tuple(make_pass_through_transform(L0),
+                           make_xor_transform(make_tuple(number<L1>{}, number<L2>{})),
+                           make_pass_through_transform(L3)),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+
+            constexpr index_t KPacksPerBlock = KPerBlock / KPack;
+            constexpr index_t NRowsPerLdsRow = 64 * 2 / KPerBlock;
+            const auto b_lds_block_desc_2    = transform_tensor_descriptor(
+                b_lds_block_desc_1,
+                make_tuple(make_pass_through_transform(L0),
+                           make_pass_through_transform(L1),
+                           make_unmerge_transform(make_tuple(NRowsPerLdsRow, KPacksPerBlock)),
+                           make_pass_through_transform(L3)),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3>{}, sequence<4>{}));
+
+            const auto b_lds_block_desc_3 = transform_tensor_descriptor(
+                b_lds_block_desc_2,
+                make_tuple(make_merge_transform(make_tuple(L0, L1, NRowsPerLdsRow)),
+                           make_merge_transform(make_tuple(KPacksPerBlock, L3))),
+                make_tuple(sequence<0, 1, 2>{}, sequence<3, 4>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
+            return b_lds_block_desc_3;
         }
     }
 
