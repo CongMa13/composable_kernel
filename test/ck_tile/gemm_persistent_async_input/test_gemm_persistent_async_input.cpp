@@ -31,13 +31,13 @@ class TestGemmPersistentAsyncInput : public ::testing::Test
 {
     protected:
     // Use larger M to ensure tiles_m > tile_idx_pivot, exercising the async scheduler
-    static constexpr ck_tile::index_t M = 256; // 6 tiles with M_Tile=256
-    static constexpr ck_tile::index_t N = 256;
-    static constexpr ck_tile::index_t K = 32;
+    static constexpr ck_tile::index_t M = 256 * 8; // 6 tiles with M_Tile=256
+    static constexpr ck_tile::index_t N = 256 * 8;
+    static constexpr ck_tile::index_t K = 32 * 8;
 
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 32 * 2;
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
