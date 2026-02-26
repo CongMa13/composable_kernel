@@ -169,7 +169,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
 
         constexpr index_t LdsPackPerRow = kLdsRowBytes / DWORDx4;
         constexpr index_t M2            = LdsPackPerRow / K1;
-        constexpr index_t M1            = get_warp_size() / (K1 * M2);
+        constexpr index_t M1            = 16;
         const index_t M0                = integer_divide_ceil(rows, (M1 * M2));
         const auto row_lens             = make_tuple(M0, number<M1>{}, number<M2>{});
 
@@ -177,7 +177,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         static_assert(K2 == 8);
         static_assert(K1 == 4);
         static_assert(M2 == 4);
-        static_assert(M1 == 4);
+        static_assert(M1 == 16);
         const auto d0 = make_naive_tensor_descriptor_packed(container_concat(row_lens, col_lens));
         const auto desc_0 = decltype(d0)(
             d0.get_transforms(), tensor_view_tmp.get_tensor_descriptor().get_element_space_size());
@@ -268,7 +268,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
 
         constexpr index_t LdsPackPerRow = kLdsRowBytes / DWORDx4;
         constexpr index_t N2            = LdsPackPerRow / K1;
-        constexpr index_t N1            = get_warp_size() / (K1 * N2);
+        constexpr index_t N1            = 16;
         const index_t N0                = integer_divide_ceil(rows, (N1 * N2));
         const auto row_lens             = make_tuple(N0, number<N1>{}, number<N2>{});
 
