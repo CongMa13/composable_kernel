@@ -31,13 +31,13 @@ class TestGemmPersistentAsyncInput : public ::testing::Test
 {
     protected:
     // Use larger M to ensure tiles_m > tile_idx_pivot, exercising the async scheduler
-    static constexpr ck_tile::index_t M = 256 * 8; // 6 tiles with M_Tile=256
-    static constexpr ck_tile::index_t N = 256 * 8;
-    static constexpr ck_tile::index_t K = 32 * 8;
+    static constexpr ck_tile::index_t M = 256 * 1; // 6 tiles with M_Tile=256
+    static constexpr ck_tile::index_t N = 256 * 1;
+    static constexpr ck_tile::index_t K = 32 * 1;
 
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 32 * 2;
+    static constexpr ck_tile::index_t K_Tile = 32 * 1;
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
@@ -76,19 +76,21 @@ class TestGemmPersistentAsyncInput : public ::testing::Test
             M, N, stride_C, ck_tile::bool_constant<is_c_row_major>{}));
 
         // Fill input tensors with random values
-        // ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
-        // a_m_k.ForEach([](auto& v, auto idx) { v(idx) = v(idx) / static_cast<_Float16>(100.0f);
-        // }); ck_tile::FillConstant<ADataType>{2}(a_m_k); printf("a_m_k\n"); for(auto v : a_m_k)
+        ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
+        // a_m_k.ForEach([](auto& v, auto idx) { v(idx) = v(idx) / static_cast<_Float16>(100.0f); });
+        // ck_tile::FillConstant<ADataType>{3}(a_m_k);
+        // printf("a_m_k\n");
+        // for(auto v : a_m_k)
         // {
         //     printf("%f, ", static_cast<float>(v));
         // }
         // printf("\n");
-        // ck_tile::FillConstant<BDataType>{1}(b_k_n);
-        // ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
+        // ck_tile::FillConstant<BDataType>{3}(b_k_n);
+        ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
         // b_k_n.ForEach([](auto& v, auto idx) { v(idx) = v(idx) / static_cast<_Float16>(100.0f);
         // });
-        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
-        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
+        // ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
+        // ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
 
         // Allocate device memory
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());

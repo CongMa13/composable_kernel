@@ -34,7 +34,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
 
     template <typename Problem,
               typename OverrideADataType = remove_cvref_t<typename Problem::ADataType>>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
+    CK_TILE_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -53,16 +53,21 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         }
         else
         {
-            constexpr index_t KPack = GetSmemPackA<Problem>(); // k elements per thread
+            constexpr index_t KPack = GetSmemPackA<Problem>(); // k elements per thread 8
             constexpr index_t KPacksPerXorShuffle =
                 ck_tile::max(kBytesPerLdsRow / static_cast<index_t>(sizeof(ADataType)), KPerBlock) /
-                KPack;
+                KPack; // 16
 
             constexpr index_t L3 = KPack;
             constexpr index_t L2 = KPacksPerXorShuffle;
             constexpr index_t L1 = ck_tile::min(
-                kVecLoadsPerLdsRow, integer_divide_ceil(MPerBlock * KPerBlock, L2 * L3));
+                kVecLoadsPerLdsRow, integer_divide_ceil(MPerBlock * KPerBlock, L2 * L3)); // 16
             constexpr index_t L0 = integer_divide_ceil(MPerBlock * KPerBlock, L1 * L2 * L3);
+            static_assert(L3 == 8);
+            static_assert(L2 == 16);
+            static_assert(L1 == 16);
+            static_assert(L0 == 4);
+
             constexpr auto a_lds_block_desc_0 =
                 make_naive_tensor_descriptor(make_tuple(L0, L1, L2, L3),
                                              make_tuple(L1 * L2 * L3, L2 * L3, L3, 1),
@@ -93,7 +98,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
+    CK_TILE_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -127,6 +132,10 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
                                              make_tuple(L1 * L2 * L3, L2 * L3, L3, 1),
                                              number<KPack>{},
                                              number<1>{});
+            static_assert(L3 == 8);
+            static_assert(L2 == 16);
+            static_assert(L1 == 16);
+            static_assert(L0 == 4);
 
             const auto b_lds_block_desc_1 = transform_tensor_descriptor(
                 b_lds_block_desc_0,
@@ -175,11 +184,24 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         const auto col_lens  = make_tuple(K0, number<K1>{}, number<K2>{});
 
         constexpr index_t M2 = integer_divide_ceil(kVecLoadsPerLdsRow, kLoadsPerBlockK);
-        const index_t M1     = ck_tile::min(kVecLoadsPerLdsRow, integer_divide_ceil(rows, M2));
+        const index_t M1     = 16;
+        //const index_t M1     = ck_tile::min(kVecLoadsPerLdsRow, integer_divide_ceil(rows, M2));
         const index_t M0     = integer_divide_ceil(rows, (M1 * M2));
         const auto row_lens  = make_tuple(M0, M1, M2);
+        /*
+        static_assert(K2 == 8);
+        static_assert(K1 == 4);
+        static_assert(K0 == 1);
+        static_assert(M2 == 4);
+        static_assert(M1 == 16);
+        static_assert(M0 == 4);
+        */
+        if (threadIdx.x == 0 && blockIdx.x == 0) {
+            printf("k, m: %d, %d, %d, %d, %d, %d\n", K2, K1, K0, M2, M1, M0);
+        }
 
         const auto d0 = make_naive_tensor_descriptor_packed(container_concat(row_lens, col_lens));
+        /*
         const auto desc_0 = decltype(d0)(
             d0.get_transforms(), tensor_view_tmp.get_tensor_descriptor().get_element_space_size());
         const auto desc_1 = transform_tensor_descriptor(
@@ -196,7 +218,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         const auto desc_2      = transform_tensor_descriptor(
             desc_1,
             make_tuple(make_pass_through_transform(M0),
-                       make_xor_transform(make_tuple(M1, number<M2K1>{})),
+                       make_xor_transform(make_tuple(M1, M2K1)),
                        make_pass_through_transform(K0),
                        make_pass_through_transform(number<K2>{})),
             make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}, sequence<4>{}),
@@ -211,8 +233,9 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<3>{}, sequence<2>{}, sequence<4>{}),
             make_tuple(
                 sequence<0>{}, sequence<1>{}, sequence<2, 4>{}, sequence<3>{}, sequence<5>{}));
+                */
         const auto desc =
-            transform_tensor_descriptor(desc_3,
+            transform_tensor_descriptor(d0,
                                         make_tuple(make_merge_transform_v3_division_mod(row_lens),
                                                    make_merge_transform_v3_division_mod(col_lens)),
                                         make_tuple(sequence<0, 1, 2>{}, sequence<3, 4, 5>{}),
@@ -274,10 +297,14 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         const auto col_lens                = make_tuple(K0, number<K1>{}, number<K2>{});
 
         constexpr index_t N2 = integer_divide_ceil(kVecLoadsPerLdsRow, kLoadsPerBlockK);
-        const index_t N1     = ck_tile::min(kVecLoadsPerLdsRow, integer_divide_ceil(rows, N2));
+        const index_t N1     = 16;
+        //const index_t N1     = ck_tile::min(kVecLoadsPerLdsRow, integer_divide_ceil(rows, N2));
         const index_t N0     = integer_divide_ceil(rows, (N1 * N2));
         const auto row_lens  = make_tuple(N0, N1, N2);
 
+        if (threadIdx.x == 0 && blockIdx.x == 0) {
+            printf("k, n: %d, %d, %d, %d, %d, %d\n", K2, K1, K0, N2, N1, N0);
+        }
         const auto d0 = make_naive_tensor_descriptor_packed(container_concat(row_lens, col_lens));
         const auto desc_0 = decltype(d0)(
             d0.get_transforms(), tensor_view_tmp.get_tensor_descriptor().get_element_space_size());

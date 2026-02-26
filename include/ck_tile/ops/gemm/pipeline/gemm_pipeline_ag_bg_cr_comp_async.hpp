@@ -437,16 +437,30 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             // write to LDS window(0) must complete before the local prefetch
             block_sync_lds_direct_load();
 
-            // if(blockIdx.x == 0)
-            // {
-            //     ADataType* p_a_lds = a_lds_block0.get_buffer_view().p_data_;
-            //     BDataType* p_b_lds = b_lds_block0.get_buffer_view().p_data_;
-            //     auto offset0       = threadIdx.x;
-            //     printf("%03u: %f, %f\n",
-            //            offset0,
-            //            static_cast<float>((static_cast<_Float16*>(p_a_lds))[threadIdx.x]),
-            //            static_cast<float>((static_cast<_Float16*>(p_b_lds))[threadIdx.x]));
-            // }
+             if(blockIdx.x == 0)
+             {
+                 ADataType* p_a_lds = a_lds_block0.get_buffer_view().p_data_;
+                 BDataType* p_b_lds = b_lds_block0.get_buffer_view().p_data_;
+                 /*
+                 auto offset0       = threadIdx.x;
+                 printf("%03u: (%f, %f), (%f, %f)\n",
+                        offset0,
+                        static_cast<float>((static_cast<_Float16*>(p_a_lds))[threadIdx.x]),
+                        static_cast<float>((static_cast<_Float16*>(p_a_lds))[threadIdx.x + 256]),
+                        static_cast<float>((static_cast<_Float16*>(p_b_lds))[threadIdx.x]),
+                        static_cast<float>((static_cast<_Float16*>(p_b_lds))[threadIdx.x + 256]));
+                        */
+                 for (int it = 0; it < 32; it++) {
+                     auto v = static_cast<float>((static_cast<_Float16*>(p_a_lds))[threadIdx.x + 256 * it] );
+                     if (v != 1.0f) {
+                         printf("a not 1 %04u: %f\n", threadIdx.x + 256 * it, v);
+                     }
+                     v = static_cast<float>((static_cast<_Float16*>(p_b_lds))[threadIdx.x + 256 * it] );
+                     if (v != 1.0f) {
+                         printf("b not 1 %04u: %f\n", threadIdx.x + 256 * it, v);
+                     }
+                 }
+             }
             // read A(0), B(0) from LDS window(0) to pipeline registers(0)
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0, is_a_load_tr_v);
             Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0, is_b_load_tr_v);
