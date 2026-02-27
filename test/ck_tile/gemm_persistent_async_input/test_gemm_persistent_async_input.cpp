@@ -76,19 +76,12 @@ class TestGemmPersistentAsyncInput : public ::testing::Test
             M, N, stride_C, ck_tile::bool_constant<is_c_row_major>{}));
 
         // Fill input tensors with random values
+        // ck_tile::FillConstant<ADataType>{1}(a_m_k);
+        // ck_tile::FillConstant<BDataType>{1}(b_k_n);
         ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
-        // a_m_k.ForEach([](auto& v, auto idx) { v(idx) = v(idx) / static_cast<_Float16>(100.0f); });
-        // ck_tile::FillConstant<ADataType>{3}(a_m_k);
-        // printf("a_m_k\n");
-        // for(auto v : a_m_k)
-        // {
-        //     printf("%f, ", static_cast<float>(v));
-        // }
-        // printf("\n");
-        // ck_tile::FillConstant<BDataType>{3}(b_k_n);
         ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
-        // b_k_n.ForEach([](auto& v, auto idx) { v(idx) = v(idx) / static_cast<_Float16>(100.0f);
-        // });
+        // a_m_k.ForEach([](auto& v, auto idx) { v(idx) = v(idx) / static_cast<_Float16>(100.0f); });
+        // b_k_n.ForEach([](auto& v, auto idx) { v(idx) = v(idx) / static_cast<_Float16>(100.0f); });
         // ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
         // ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
 

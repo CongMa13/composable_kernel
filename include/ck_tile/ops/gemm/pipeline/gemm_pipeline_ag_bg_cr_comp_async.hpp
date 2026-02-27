@@ -452,13 +452,9 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         */
                  for (int it = 0; it < 32; it++) {
                      auto v = static_cast<float>((static_cast<_Float16*>(p_a_lds))[threadIdx.x + 256 * it] );
-                     if (v != 1.0f) {
-                         printf("a not 1 %04u: %f\n", threadIdx.x + 256 * it, v);
-                     }
+                     printf("a %04u: %f\n", threadIdx.x + 256 * it, v);
                      v = static_cast<float>((static_cast<_Float16*>(p_b_lds))[threadIdx.x + 256 * it] );
-                     if (v != 1.0f) {
-                         printf("b not 1 %04u: %f\n", threadIdx.x + 256 * it, v);
-                     }
+                     printf("b %04u: %f\n", threadIdx.x + 256 * it, v);
                  }
              }
             // read A(0), B(0) from LDS window(0) to pipeline registers(0)
